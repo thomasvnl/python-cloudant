@@ -100,14 +100,18 @@ class UnitTestDbBase(unittest.TestCase):
                 return
 
             if os.environ.get('DB_USER') is None:
+                # Get couchdb docker node name
+                os.environ['NODENAME'] = requests.get(
+                    '{0}/_membership'.format(os.environ['DB_URL'])).json()['all_nodes'][0]
                 os.environ['DB_USER_CREATED'] = '1'
                 os.environ['DB_USER'] = 'user-{0}'.format(
                     unicode_(uuid.uuid4())
                     )
                 os.environ['DB_PASSWORD'] = 'password'
                 resp = requests.put(
-                    '{0}/_config/admins/{1}'.format(
+                    '{0}/_node/{1}/_config/admins/{2}'.format(
                         os.environ['DB_URL'],
+                        os.environ['NODENAME'],
                         os.environ['DB_USER']
                         ),
                     data='"{0}"'.format(os.environ['DB_PASSWORD'])
@@ -122,11 +126,12 @@ class UnitTestDbBase(unittest.TestCase):
         if (os.environ.get('RUN_CLOUDANT_TESTS') is None and
             os.environ.get('DB_USER_CREATED') is not None):
             resp = requests.delete(
-                '{0}://{1}:{2}@{3}/_config/admins/{4}'.format(
+                '{0}://{1}:{2}@{3}/_node/{4}/_config/admins/{5}'.format(
                     os.environ['DB_URL'].split('://', 1)[0],
                     os.environ['DB_USER'],
                     os.environ['DB_PASSWORD'],
                     os.environ['DB_URL'].split('://', 1)[1],
+                    os.environ['NODENAME'],
                     os.environ['DB_USER']
                     )
                 )
@@ -333,3 +338,32 @@ class UnitTestDbBase(unittest.TestCase):
             headers={'Content-Type': 'application/json'}
         )
         self.assertEqual(resp.status_code, 200)
+
+    def assert_changes_in_db_updates_feed(self, changes):
+        """
+        Assert that databases created in setup for db_updates_tests exist when looping through _db_updates feed
+        Note: During the creation of _global_changes database, a doc called '_dbs' is created and seen in _db_updates
+        """
+        dbs = ['_dbs', self.new_dbs[0].database_name, self.new_dbs[1].database_name]
+        types = ['created', 'updated']
+        for doc in changes:
+            self.assertIsNotNone(doc['seq'])
+            self.assertTrue(doc['db_name'] in dbs)
+            self.assertTrue(doc['type'] in types)
+
+    def create_db_updates(self):
+        """
+        Create '_global_changes' system database required for testing against _db_updates
+        """
+        self.new_dbs = list()
+        self.DB_UPDATES = '_global_changes'
+        try:
+            self.client[self.DB_UPDATES]
+        except KeyError:
+            self.client.create_database(self.DB_UPDATES)
+
+    def delete_db_updates(self):
+        """
+        Delete '_global_changes' system database used for _db_updates testing
+        """
+        self.client.delete_database(self.DB_UPDATES)
