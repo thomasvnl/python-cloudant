@@ -34,25 +34,36 @@ class DbUpdatesTestsBase(UnitTestDbBase):
     """
     Common _db_updates tests methods
     """
-
+    
     def setUp(self):
         """
         Set up test attributes
         """
         super(DbUpdatesTestsBase, self).setUp()
         self.client.connect()
-        self.new_dbs = list()
+        self.create_db_updates()
+        self.create_dbs()
 
     def tearDown(self):
         """
         Reset test attributes
         """
-        [db.delete() for db in self.new_dbs]
+        self.delete_db_updates()
         self.client.disconnect()
         super(DbUpdatesTestsBase, self).tearDown()
 
-    def create_dbs(self, count=3):
+    def create_dbs(self, count=2):
         self.new_dbs += [(self.client.create_database(self.dbname())) for x in range(count)]
+        # Verify that all created databases are listed in _db_updates
+        all_dbs_exist = False
+        while not all_dbs_exist:
+            changes = list()
+            feed = Feed(self.client, timeout=1000)
+            for change in feed:
+                changes.append(change)
+                if len(changes) == 3:
+                    all_dbs_exist = True
+
 
 @unittest.skipIf(os.environ.get('RUN_CLOUDANT_TESTS'),
     'Skipping CouchDB _db_updates feed tests')
@@ -80,45 +91,25 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         feed = Feed(self.client, feed='continuous', timeout=100)
         changes = list()
         for change in feed:
-            if not change:
-                if not self.new_dbs:
-                    self.create_dbs(5)
-                else:
-                    continue
-            else:
-                changes.append(change)
-                if len(changes) == 3:
-                    feed.stop()
-        self.assertEqual(len(self.new_dbs), 5)
+            changes.append(change)
+            if len(changes) == 3:
+                feed.stop()
+        self.assert_changes_in_db_updates_feed(changes)
         self.assertEqual(len(changes), 3)
-        self.assertDictEqual(
-            changes[0], {'db_name': self.new_dbs[0].database_name, 'type': 'created'})
-        self.assertDictEqual(
-            changes[1], {'db_name': self.new_dbs[1].database_name, 'type': 'created'})
-        self.assertDictEqual(
-            changes[2], {'db_name': self.new_dbs[2].database_name, 'type': 'created'})
 
     def test_get_raw_content(self):
         """
         Test getting raw feed content
         """
-        feed = Feed(self.client, raw_data='True', feed='continuous', timeout=100)
+        feed = Feed(self.client, raw_data=True, feed='continuous', timeout=100)
         raw_content = list()
         for raw_line in feed:
             self.assertIsInstance(raw_line, BYTETYPE)
-            if not raw_line:
-                self.create_dbs(3)
-            else:
-                raw_content.append(raw_line)
-                if len(raw_content) == 3:
-                    feed.stop()
+            raw_content.append(raw_line)
+            if len(raw_content) == 3:
+                feed.stop()
         changes = [json.loads(unicode_(x)) for x in raw_content]
-        self.assertDictEqual(
-            changes[0], {'db_name': self.new_dbs[0].database_name, 'type': 'created'})
-        self.assertDictEqual(
-            changes[1], {'db_name': self.new_dbs[1].database_name, 'type': 'created'})
-        self.assertDictEqual(
-            changes[2], {'db_name': self.new_dbs[2].database_name, 'type': 'created'})
+        self.assert_changes_in_db_updates_feed(changes)
 
     def test_get_longpoll_feed_as_default(self):
         """
@@ -127,10 +118,10 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         feed = Feed(self.client, timeout=1000)
         changes = list()
         for change in feed:
-            self.assertIsNone(change)
+            self.assertIsNotNone(change)
             changes.append(change)
-        self.assertEqual(len(changes), 1)
-        self.assertIsNone(changes[0])
+        self.assert_changes_in_db_updates_feed(changes)
+        self.assertEqual(len(changes), 3)
 
     def test_get_longpoll_feed_explicit(self):
         """
@@ -140,10 +131,10 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         feed = Feed(self.client, timeout=1000, feed='longpoll')
         changes = list()
         for change in feed:
-            self.assertIsNone(change)
+            self.assertIsNotNone(change)
             changes.append(change)
-        self.assertEqual(len(changes), 1)
-        self.assertIsNone(changes[0])
+        self.assert_changes_in_db_updates_feed(changes)
+        self.assertEqual(len(changes), 3)
 
     def test_get_continuous_with_timeout(self):
         """
@@ -151,7 +142,14 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         and no heartbeat
         """
         feed = Feed(self.client, feed='continuous', heartbeat=False, timeout=1000)
-        self.assertListEqual([x for x in feed], [])
+        changes = list()
+        for change in feed:
+            self.assertIsNotNone(change)
+            changes.append(change)
+            if len(changes) == 3:
+                feed.stop()
+        self.assert_changes_in_db_updates_feed(changes)
+        self.assertEqual(len(changes), 3)
 
     def test_invalid_argument(self):
         """
@@ -249,7 +247,6 @@ class CloudantDbUpdatesTests(DbUpdatesTestsBase):
         feed = Feed(self.client, feed='continuous', since='now')
         count = 0
         changes = list()
-        self.create_dbs(3)
         for change in feed:
             self.assertTrue(all(x in change for x in ('seq', 'type')))
             changes.append(change)
@@ -281,7 +278,6 @@ class CloudantDbUpdatesTests(DbUpdatesTestsBase):
         Test getting content back for a "normal" feed without feed option.  Also
         using limit since we don't know how many updates have occurred on client.
         """
-        self.create_dbs(3)
         feed = Feed(self.client, limit=3)
         changes = list()
         for change in feed:
@@ -296,7 +292,6 @@ class CloudantDbUpdatesTests(DbUpdatesTestsBase):
         Test getting content back for a "normal" feed using feed option.  Also
         using limit since we don't know how many updates have occurred on client.
         """
-        self.create_dbs(3)
         feed = Feed(self.client, feed='normal', limit=3)
         changes = list()
         for change in feed:
@@ -310,7 +305,6 @@ class CloudantDbUpdatesTests(DbUpdatesTestsBase):
         """
         Test getting content back for a "longpoll" feed
         """
-        self.create_dbs(3)
         feed = Feed(self.client, feed='longpoll', limit=3)
         changes = list()
         for change in feed:
