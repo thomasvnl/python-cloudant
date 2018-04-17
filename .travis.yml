@@ -20,6 +20,8 @@ before_install:
 install: "pip install -r requirements.txt && pip install -r test-requirements.txt"
 
 before_script:
+    # Make sure CouchDB is up
+    - while [ $? -ne 0 ]; do sleep 1 && curl -v http://localhost:5984; done
     - curl -X PUT http://localhost:5984/_users
     - curl -X PUT http://localhost:5984/_replicator
 
