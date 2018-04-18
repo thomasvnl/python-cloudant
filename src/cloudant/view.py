@@ -34,6 +34,10 @@ class View(dict):
     result collection that can be used to query the view data through the
     ``result`` attribute.
 
+    Note: By default, the result collection will use the reduce function of the View object.
+    If a reduce exists but only the map function is required, use ``reduce=False`` in the
+    :func:`~cloudant.view.View.custom_result` context manager.
+
     For example:
 
     .. code-block:: python
