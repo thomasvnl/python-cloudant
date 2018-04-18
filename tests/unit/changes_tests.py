@@ -24,7 +24,7 @@ import os
 from cloudant.feed import Feed
 from cloudant.document import Document
 from cloudant.design_document import DesignDocument
-from cloudant.error import CloudantArgumentError, CloudantException
+from cloudant.error import CloudantArgumentError
 from cloudant._2to3 import unicode_
 
 from .unit_t_db_base import UnitTestDbBase
