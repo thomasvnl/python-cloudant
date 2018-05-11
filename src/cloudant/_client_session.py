@@ -102,32 +102,6 @@ class ClientSession(Session):
         """
         pass
 
-
-class BasicSession(ClientSession):
-    """
-    This class extends ClientSession to provide basic access authentication.
-    """
-
-    def __init__(self, username, password, server_url, **kwargs):
-        super(BasicSession, self).__init__(
-            username=username,
-            password=password,
-            session_url=url_join(server_url, '_session'),
-            **kwargs)
-
-    def request(self, method, url, **kwargs):
-        """
-        Overrides ``requests.Session.request`` to provide basic access
-        authentication.
-        """
-        auth = None
-        if self._username is not None and self._password is not None:
-            auth = (self._username, self._password)
-
-        return super(BasicSession, self).request(
-            method, url, auth=auth, **kwargs)
-
-
 class CookieSession(ClientSession):
     """
     This class extends ClientSession and provides cookie authentication.

@@ -34,7 +34,7 @@ from time import sleep
 
 from cloudant import cloudant, cloudant_bluemix, couchdb, couchdb_admin_party
 from cloudant.client import Cloudant, CouchDB
-from cloudant._client_session import BasicSession, CookieSession
+from cloudant._client_session import CookieSession
 from cloudant.database import CloudantDatabase
 from cloudant.error import CloudantArgumentError, CloudantClientException
 from cloudant.feed import Feed, InfiniteFeed
@@ -224,100 +224,6 @@ class ClientTests(UnitTestDbBase):
                 self.assertIsNotNone(self.client.session_cookie())
         finally:
             self.client.disconnect()
-
-    @mock.patch('cloudant._client_session.Session.request')
-    def test_session_basic(self, m_req):
-        """
-        Test using basic access authentication.
-        """
-        m_response_ok = mock.MagicMock()
-        type(m_response_ok).status_code = mock.PropertyMock(return_value=200)
-        m_response_ok.json.return_value = ['animaldb']
-        m_req.return_value = m_response_ok
-
-        client = Cloudant('foo', 'bar', url=self.url, use_basic_auth=True)
-        client.connect()
-        self.assertIsInstance(client.r_session, BasicSession)
-
-        all_dbs = client.all_dbs()
-
-        m_req.assert_called_once_with(
-            'GET',
-            self.url + '/_all_dbs',
-            allow_redirects=True,
-            auth=('foo', 'bar'),  # uses HTTP Basic Auth
-            timeout=None
-        )
-
-        self.assertEquals(all_dbs, ['animaldb'])
-
-    @mock.patch('cloudant._client_session.Session.request')
-    def test_session_basic_with_no_credentials(self, m_req):
-        """
-        Test using basic access authentication with no credentials.
-        """
-        m_response_ok = mock.MagicMock()
-        type(m_response_ok).status_code = mock.PropertyMock(return_value=200)
-        m_req.return_value = m_response_ok
-
-        client = Cloudant(None, None, url=self.url, use_basic_auth=True)
-        client.connect()
-        self.assertIsInstance(client.r_session, BasicSession)
-
-        db = client['animaldb']
-
-        m_req.assert_called_once_with(
-            'HEAD',
-            self.url + '/animaldb',
-            allow_redirects=False,
-            auth=None,  # ensure no authentication specified
-            timeout=None
-        )
-
-        self.assertIsInstance(db, CloudantDatabase)
-
-    @mock.patch('cloudant._client_session.Session.request')
-    def test_change_credentials_basic(self, m_req):
-        """
-        Test changing credentials when using basic access authentication.
-        """
-        # mock 200
-        m_response_ok = mock.MagicMock()
-        m_response_ok.json.return_value = ['animaldb']
-
-        # mock 401
-        m_response_bad = mock.MagicMock()
-        m_response_bad.raise_for_status.side_effect = HTTPError('401 Unauthorized')
-
-        m_req.side_effect = [m_response_bad, m_response_ok]
-
-        client = Cloudant('foo', 'bar', url=self.url, use_basic_auth=True)
-        client.connect()
-        self.assertIsInstance(client.r_session, BasicSession)
-
-        with self.assertRaises(HTTPError):
-            client.all_dbs()  # expected 401
-
-        m_req.assert_called_with(
-            'GET',
-            self.url + '/_all_dbs',
-            allow_redirects=True,
-            auth=('foo', 'bar'),  # uses HTTP Basic Auth
-            timeout=None
-        )
-
-        # use valid credentials
-        client.change_credentials('baz', 'qux')
-        all_dbs = client.all_dbs()
-
-        m_req.assert_called_with(
-            'GET',
-            self.url + '/_all_dbs',
-            allow_redirects=True,
-            auth=('baz', 'qux'),  # uses HTTP Basic Auth
-            timeout=None
-        )
-        self.assertEquals(all_dbs, ['animaldb'])
 
     @skip_if_not_cookie_auth
     def test_basic_auth_str(self):

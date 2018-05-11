@@ -17,9 +17,9 @@ Top level API module that maps to a Cloudant or CouchDB client connection
 instance.
 """
 import json
+from ._2to3 import url_parse
 
 from ._client_session import (
-    BasicSession,
     ClientSession,
     CookieSession,
     IAMSession
@@ -91,8 +91,14 @@ class CouchDB(dict):
         self._timeout = kwargs.get('timeout', None)
         self.r_session = None
         self._auto_renew = kwargs.get('auto_renew', False)
-        self._use_basic_auth = kwargs.get('use_basic_auth', False)
         self._use_iam = kwargs.get('use_iam', False)
+        # If user/pass exist in URL, remove and set variables
+        if self.server_url:
+            parsed_url = url_parse(kwargs.get('url'))
+            self.server_url = '://'.join((parsed_url.scheme, parsed_url.hostname))
+            if (not user and not auth_token) and (parsed_url.username and parsed_url.password):
+                self._user = parsed_url.username
+                self._auth_token = parsed_url.password
 
         connect_to_couch = kwargs.get('connect', False)
         if connect_to_couch and self._DATABASE_CLASS == CouchDatabase:
@@ -118,14 +124,6 @@ class CouchDB(dict):
         if self.admin_party:
             self._use_iam = False
             self.r_session = ClientSession(
-                timeout=self._timeout
-            )
-        elif self._use_basic_auth:
-            self._use_iam = False
-            self.r_session = BasicSession(
-                self._user,
-                self._auth_token,
-                self.server_url,
                 timeout=self._timeout
             )
         elif self._use_iam:
