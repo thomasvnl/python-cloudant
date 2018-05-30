@@ -42,7 +42,7 @@ class DbUpdatesTestsBase(UnitTestDbBase):
         self.client.connect()
         self.db_names = list()
         self.new_dbs = list()
-        if not self.is_couchdb_1x_version():
+        if not self.is_couchdb_1x_version(self.url):
             self.create_db_updates()
             self.create_dbs()
 
@@ -54,8 +54,8 @@ class DbUpdatesTestsBase(UnitTestDbBase):
         changes = list()
         [db.delete() for db in self.new_dbs]
         # Check the changes in the _db_updates feed to assert that the test databases are deleted
-        if not self.is_couchdb_1x_version():
-            while not test_dbs_deleted and not self.is_couchdb_1x_version():
+        if not self.is_couchdb_1x_version(self.url):
+            while not test_dbs_deleted and not self.is_couchdb_1x_version(self.url):
                 feed = Feed(self.client, timeout=1000)
                 for change in feed:
                     if change['db_name'] in self.db_names and change['type'] == 'deleted':
@@ -68,7 +68,7 @@ class DbUpdatesTestsBase(UnitTestDbBase):
         super(DbUpdatesTestsBase, self).tearDown()
 
     def create_dbs(self):
-        if not self.is_couchdb_1x_version():
+        if not self.is_couchdb_1x_version(self.url):
             self.db_names = [self.dbname() for x in range(2)]
             self.new_dbs += [self.client.create_database(dbname) for dbname in self.db_names]
             # Verify that all created databases are listed in _db_updates
@@ -89,7 +89,7 @@ class DbUpdatesTestsBase(UnitTestDbBase):
         Assert that databases created in setup for db_updates_tests exist when looping through _db_updates feed
         Note: During the creation of _global_changes database, a doc called '_dbs' is created and seen in _db_updates
         """
-        if not self.is_couchdb_1x_version():
+        if not self.is_couchdb_1x_version(self.url):
             self.dbs = ['_dbs', self.new_dbs[0].database_name, self.new_dbs[1].database_name]
             types = ['created', 'updated']
             for doc in changes:
@@ -130,7 +130,7 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         feed = Feed(self.client, feed='continuous', timeout=100)
         changes = list()
         for change in feed:
-            if not change and self.is_couchdb_1x_version():
+            if not change and self.is_couchdb_1x_version(self.url):
                 self.create_dbs()
             else:
                 changes.append(change)
@@ -147,7 +147,7 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         raw_content = list()
         for raw_line in feed:
             self.assertIsInstance(raw_line, BYTETYPE)
-            if not raw_line and self.is_couchdb_1x_version():
+            if not raw_line and self.is_couchdb_1x_version(self.url):
                 self.create_dbs()
             else:
                 raw_content.append(raw_line)
@@ -162,7 +162,7 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         """
         feed = Feed(self.client, timeout=1000)
         changes = list()
-        if self.is_couchdb_1x_version():
+        if self.is_couchdb_1x_version(self.url):
             for change in feed:
                 self.assertIsNone(change)
                 changes.append(change)
@@ -184,7 +184,7 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         """
         feed = Feed(self.client, timeout=1000, feed='longpoll')
         changes = list()
-        if self.is_couchdb_1x_version():
+        if self.is_couchdb_1x_version(self.url):
             for change in feed:
                 self.assertIsNone(change)
                 changes.append(change)
@@ -206,7 +206,7 @@ class CouchDbUpdatesTests(DbUpdatesTestsBase):
         """
         feed = Feed(self.client, feed='continuous', heartbeat=False, timeout=1000)
         changes = list()
-        if self.is_couchdb_1x_version():
+        if self.is_couchdb_1x_version(self.url):
             self.assertListEqual([x for x in feed], [])
         else:
             for change in feed:

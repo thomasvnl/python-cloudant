@@ -100,7 +100,7 @@ class ChangesTests(UnitTestDbBase):
             self.assertIsInstance(raw_line, BYTETYPE)
             raw_content.append(raw_line)
         changes = json.loads(''.join([unicode_(x) for x in raw_content]))
-        if self.is_couchdb_1x_version() is True:
+        if self.is_couchdb_1x_version(self.url) is True:
             self.assertSetEqual(
                 set(changes.keys()), set(['results', 'last_seq']))
         else:
@@ -234,7 +234,7 @@ class ChangesTests(UnitTestDbBase):
         last_seq = None
         for change in feed:
             if last_seq:
-                if self.is_couchdb_1x_version() is True:
+                if self.is_couchdb_1x_version(self.url) is True:
                     self.assertTrue(change['seq'] < last_seq)
                 else:
                     current = int(change['seq'][0: change['seq'].find('-')])

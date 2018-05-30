@@ -109,7 +109,7 @@ class UnitTestDbBase(unittest.TestCase):
 
             if os.environ.get('DB_USER') is None:
                 # Get couchdb docker node name
-                if os.environ.get('COUCHDB_VERSION') == '2.1.1':
+                if not cls.is_couchdb_1x_version(os.environ['DB_URL']):
                     os.environ['NODENAME'] = requests.get(
                         '{0}/_membership'.format(os.environ['DB_URL'])).json()['all_nodes'][0]
                 os.environ['DB_USER_CREATED'] = '1'
@@ -117,7 +117,7 @@ class UnitTestDbBase(unittest.TestCase):
                     unicode_(uuid.uuid4())
                     )
                 os.environ['DB_PASSWORD'] = 'password'
-                if os.environ.get('COUCHDB_VERSION') == '2.1.1':
+                if not cls.is_couchdb_1x_version(os.environ['DB_URL']):
                     resp = requests.put(
                         '{0}/_node/{1}/_config/admins/{2}'.format(
                             os.environ['DB_URL'],
@@ -143,7 +143,7 @@ class UnitTestDbBase(unittest.TestCase):
         """
         if (os.environ.get('RUN_CLOUDANT_TESTS') is None and
             os.environ.get('DB_USER_CREATED') is not None):
-            if os.environ.get('COUCHDB_VERSION') == '2.1.1':
+            if not cls.is_couchdb_1x_version(os.environ['DB_URL']):
                 resp = requests.delete(
                     '{0}://{1}:{2}@{3}/_node/{4}/_config/admins/{5}'.format(
                         os.environ['DB_URL'].split('://', 1)[0],
@@ -201,10 +201,16 @@ class UnitTestDbBase(unittest.TestCase):
                 timeout=timeout
             )
         else:
-            self.account = os.environ.get('CLOUDANT_ACCOUNT')
-            self.url = os.environ.get(
-                'DB_URL',
-                'https://{0}.cloudant.com'.format(self.account))
+            if os.environ.get('CLOUDANT_ACCOUNT') is not None:
+                self.account = os.environ.get('CLOUDANT_ACCOUNT')
+            else:
+                self.account = None
+            if os.environ.get('DB_URL') is not None:
+                self.url = os.environ.get('DB_URL')
+            else:
+                self.url = os.environ.get(
+                    'DB_URL',
+                    'https://{0}.cloudant.com'.format(self.account))
 
             if os.environ.get('RUN_BASIC_AUTH_TESTS'):
                 self.use_cookie_auth = False
@@ -236,16 +242,27 @@ class UnitTestDbBase(unittest.TestCase):
                 )
             else:
                 # construct Cloudant client (using cookie authentication)
-                self.client = Cloudant(
-                    self.user,
-                    self.pwd,
-                    url=self.url,
-                    x_cloudant_user=self.account,
-                    connect=auto_connect,
-                    auto_renew=auto_renew,
-                    encoder=encoder,
-                    timeout=timeout
-                )
+                if self.account is not None:
+                    self.client = Cloudant(
+                        self.user,
+                        self.pwd,
+                        url=self.url,
+                        x_cloudant_user=self.account,
+                        connect=auto_connect,
+                        auto_renew=auto_renew,
+                        encoder=encoder,
+                        timeout=timeout
+                    )
+                else:
+                    self.client = Cloudant(
+                        self.user,
+                        self.pwd,
+                        url=self.url,
+                        connect=auto_connect,
+                        auto_renew=auto_renew,
+                        encoder=encoder,
+                        timeout=timeout
+                    )
 
     def tearDown(self):
         """
@@ -389,12 +406,13 @@ class UnitTestDbBase(unittest.TestCase):
         except CloudantClientException:
             pass
 
-    def is_couchdb_1x_version(self):
+    @staticmethod
+    def is_couchdb_1x_version(server_url):
         if os.environ.get('COUCHDB_VERSION') and os.environ.get('COUCHDB_VERSION').startswith('1'):
             return True
         else:
             # Get version from server info
-            couchdb_info = json.loads(self.client.r_session.get(self.client.server_url).text)
+            couchdb_info = json.loads(requests.get(server_url).text)
             if couchdb_info and couchdb_info['version'].startswith('1'):
                 return True
             else:
