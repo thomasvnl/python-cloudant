@@ -14,7 +14,7 @@
  * and limitations under the License.
  */
 
-def getEnvForDest(dest) {
+def getEnvForDest(dest, auth) {
     // Define the matrix environments
     CLOUDANT_ENV = ['DB_HTTP=https', 'DB_HOST=clientlibs-test.cloudant.com', 'DB_PORT=443']
     CONTAINER_ENV = ['DB_HTTP=http', 'DB_PORT=5984']
@@ -38,10 +38,24 @@ def getEnvForDest(dest) {
                error("Unknown test env")
        }
     }
+
+    switch(auth) {
+      case 'basic':
+        testEnvVars.add("RUN_BASIC_AUTH_TESTS=1")
+        break
+      case 'cookie':
+        break
+      case 'iam':
+        // Setting IAM_API_KEY forces tests to run using an IAM enabled client.
+        testEnvVars.add("IAM_API_KEY=$DB_IAM_API_KEY")
+        break
+      default:
+        error("Unknown test suite environment ${auth}")
+    }
     return testEnvVars
 }
 
-def test_python(name, dest) {
+def test_python(name, dest, auth) {
   // Define the test routine for different python versions
   def testRun = {
     sh "wget -S --spider --retry-connrefused ${env.DB_HTTP}://${env.DB_HOST}:${env.DB_PORT}; done"
@@ -74,7 +88,7 @@ def test_python(name, dest) {
       junit 'nosetests.xml'
     }
   }
-  def runInfo = [imageName: name, envVars: getEnvForDest(dest), runArgs: '-u 0']
+  def runInfo = [imageName: name, envVars: getEnvForDest(dest, auth), runArgs: '-u 0']
   // Add test suite specific environment variables
   if (dest == 'cloudant') {
     runInfo.envVars.add('CREDS_ID=clientlibs-test')
@@ -103,9 +117,13 @@ stage('Checkout'){
 stage('Test'){
   // Run tests in parallel for multiple python versions
   def testAxes = [:]
-  ['2.7.15', '3.6.5'].each { v ->
-    ['couchdb:1.7.1', 'couchdb:latest', 'ibmcom/cloudant-developer'].each { c ->
-      testAxes.put("Python${v}_${c}", {test_python("python:${v}", c)})
+  ['2.7', '3.6'].each { v ->
+    ['couchdb:1.7.1', 'couchdb:latest', 'cloudant'].each { c ->
+      ['basic','cookie','iam'].each { auth ->
+        if(auth != 'iam' && c != ~/couchdb:.*/) {
+          testAxes.put("Python${v}_${c}", {test_python("python:${v}", c, auth)})
+        }
+      }
     }
   }
   parallel(testAxes)
