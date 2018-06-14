@@ -74,7 +74,7 @@ def test_python(name, dest, auth) {
     try {
       // Unstash the source in this image
       unstash name: 'source'
-      if (env.DB_USER && dest == 'ibmcom/cloudant-developer') {
+      if (env.DB_USER && (dest == 'ibmcom/cloudant-developer' || dest == 'cloudant') {
         sh """export DB_USER=${env.DB_USER}
               export DB_PASSWORD=${env.DB_PASSWORD}"""
       }
