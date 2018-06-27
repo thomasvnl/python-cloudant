@@ -53,7 +53,10 @@ Connecting with a client
     # or with a connect and read timeout of 5 minutes
     # client = Cloudant(USERNAME, PASSWORD, account=ACCOUNT_NAME,
     #                   timeout=300)
-
+   
+    # Connect with the chosen client
+    client.connect()
+   
     # Perform client tasks...
     session = client.session()
     print('Username: {0}'.format(session['userCtx']['name']))
